@@ -1,3 +1,41 @@
+# Ghost Data deletion-audit agent (our solution)
+
+A deterministic Python agent that reads every evidence file in `dataset/`, rebuilds what each system held at each request's `audit_at`, and writes `output.csv` with the status and ordered findings, remediation and verification steps for all 518 requests.
+
+## Setup
+
+- Python 3.10 or newer, standard library only.
+- PDF text: the `pdftotext` command (poppler-utils, e.g. `apt install poppler-utils` or `brew install poppler`). If it is missing, `pip install pypdf` is used as a fallback.
+- No API keys and no network access are needed.
+
+## Run
+
+From the repository root:
+
+```bash
+python3 code/main.py                                   # writes output.csv (518 rows)
+python3 code/evaluation/main.py validate --pred output.csv
+python3 code/main.py --samples                         # writes code/evaluation/sample_predictions.csv
+python3 code/evaluation/main.py score --pred code/evaluation/sample_predictions.csv
+python3 code/evaluation/custom_cases.py                # 18 hand-built checks
+```
+
+## How it works
+
+| Step | Code | What it does |
+| --- | --- | --- |
+| 1. Classify | `code/agent/classify.py` | Treats a request as a deletion unless it states another intent (access copy, correction, marketing opt-out, login help, "do not close my account"). Works across the languages in the dataset. |
+| 2. Resolve identity | `code/agent/engine.py` (`Context`) | Maps the request email to a user through current identities and historical email changes in `user_audit_log.csv`, then collects every identifier (emails, phones, hashes, user_id). |
+| 3. Load evidence | `code/agent/evidence.py`, `logparse.py` | Turns SQL captures (run in SQLite), JSON exports, six log formats, text handovers, PDFs and the screenshot transcription into one list of observations: file, capture time, system, resource, state, identifiers. |
+| 4. Link records | `engine.py` (`link_activity`) | Ties records to users by identifiers and data-catalog links; records with no identifier left (deleted accounts, anonymized rows) are matched to cases from deletion-worker activity windows with a small max-weight matching per batch. |
+| 5. Judge state at audit time | `engine.py` (`audit_case`) | Uses the latest observation captured at or before `audit_at`; workflow results are treated as claims. Full-table captures prove absence by omission. |
+| 6. Apply policy | `engine.py` (`TREATMENT`) | Follows `deletion_rules.csv`: delete, redact (support conversations, tombstones, delivery logs), anonymize analytics, disable data flows, block backup restores, retain security audit and legal hold records. |
+| 7. Emit steps | `engine.py` (`finalize`) | Findings, remediation, verification; sorted by the operation table, then system and resource; remediation and future checks carry empty evidence. |
+
+Screenshots were transcribed once with Claude vision during development and checked by hand (`code/agent/image_notes.json`); the run itself makes no model calls. See `code/evaluation/evaluation_report.md` for accuracy and `code/evaluation/usage_report.md` for usage.
+
+---
+
 # HackerRank Orchestrate - October 2026
 
 ## Ghost Data Still Exists

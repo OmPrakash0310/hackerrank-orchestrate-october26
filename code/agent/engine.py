@@ -336,6 +336,20 @@ def epoch_start(ctx, uid, req, all_requests):
     return max(prev) if prev else ""
 
 
+def epoch_end(ctx, uid, req, all_requests):
+    """Records that first surface after the same user's next request belong to that request."""
+    nxt = [r["requested_at"] for r in all_requests
+           if r["case_id"] != req["case_id"] and ctx.resolve(r["email"])[:1] == [uid]
+           and r["requested_at"] > req["audit_at"]]
+    return min(nxt) if nxt else "9999"
+
+
+def first_seen(ctx, rid):
+    times = [o.captured_at for o in ctx.by_resource.get(rid, [])]
+    times += [a["event_time"] for a in ctx.activity if a["resource_id"] == rid]
+    return min(times) if times else ""
+
+
 def audit_case(ctx, req, all_requests):
     if not is_deletion_request(req["request_text"]):
         return "NOT_APPLICABLE", []
@@ -349,6 +363,8 @@ def audit_case(ctx, req, all_requests):
     resources = {r for r in ctx.user_resources[uid]
                  if any(start < o.captured_at for o in ctx.by_resource[r])}
     resources |= ctx.activity_links.get(req["case_id"], set())
+    end = epoch_end(ctx, uid, req, all_requests)
+    resources = {r for r in resources if first_seen(ctx, r) < end}
 
     # One account per case: keep the one the worker touched for this case if there is a choice.
     accounts = sorted(r for r in resources if ev.system_of(r) == "account_service")
