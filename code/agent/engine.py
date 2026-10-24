@@ -168,7 +168,7 @@ class Context:
                 continue
             users = self.resolve(r["email"])
             if users:
-                cases.append((r["case_id"], users[0], ts(r["reported_at"])))
+                cases.append((r["case_id"], users[0], ts(r["reported_at"]), r["requested_at"], r["audit_at"]))
         cand = defaultdict(set)    # resource -> case ids
         system_of, event_time = {}, {}
         for a in self.activity:
@@ -176,12 +176,13 @@ class Context:
                 continue
             t = ts(a["event_time"])
             before, after = WINDOWS[worker_kind(a)]
-            for cid, uid, rep in cases:
+            for cid, uid, rep, _, _ in cases:
                 if rep - before <= t <= rep + after:
                     cand[a["resource_id"]].add(cid)
                     system_of[a["resource_id"]] = a["target_system"]
                     event_time[a["resource_id"]] = a["event_time"]
-        case_user = {cid: uid for cid, uid, _ in cases}
+        case_user = {c[0]: c[1] for c in cases}
+        case_span = {c[0]: (c[3], c[4]) for c in cases}
         assigned = defaultdict(set)  # case -> resources
         open_res = {}
         for rid, cids in cand.items():
@@ -196,34 +197,119 @@ class Context:
         def has_system(cid, system):
             return any(system_of.get(x) == system or ev.system_of(x) == system for x in assigned[cid])
 
-        # Accounts: one per case. Propagate until stable.
-        changed = True
-        while changed:
-            changed = False
-            for rid, cids in list(open_res.items()):
-                if system_of[rid] != "account_service":
-                    continue
-                live = {c for c in cids if not has_system(c, "account_service")}
-                if len(live) == 1:
-                    assigned[live.pop()].add(rid)
-                    del open_res[rid]
-                    changed = True
-                elif live != cids:
-                    open_res[rid] = live
-        # Remaining: per system, match in order (case number vs worker event time).
-        by_sys = defaultdict(list)
-        for rid, cids in open_res.items():
-            by_sys[system_of[rid]].append(rid)
-        for system, rids in by_sys.items():
-            pool = sorted({c for r in rids for c in open_res[r] if not has_system(c, system)},
-                          key=lambda c: int(c.split("_")[1]))
-            for rid in sorted(rids, key=lambda r: event_time[r]):
-                options = [c for c in pool if c in open_res[rid]]
-                if options:
-                    assigned[options[0]].add(rid)
-                    pool.remove(options[0])
+        def seen_during(rid, cid):
+            # Observed in the case's own audit capture (taken within a day before audit_at).
+            hi = case_span[cid][1]
+            lo = (ts(hi) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return any(lo <= o.captured_at <= hi for o in self.by_resource.get(rid, []))
+
+        accounts = [r for r in open_res if system_of[r] == "account_service"]
+        self.account_open = {r: set(open_res.pop(r)) for r in accounts}
+        self._seen_during = seen_during
+        self._has_system = has_system
+        # Other records with no subject identifiers left (anonymized, redacted) are kept as
+        # orphans and handed out after a first pass shows which cases are otherwise clean.
+        self.orphans = {r: c for r, c in open_res.items()}
+        self.orphan_time = event_time
         self.activity_links = assigned
         self.activity_system = system_of
+
+
+def _components(cases, resources, links):
+    """Connected components of the case/resource candidate graph."""
+    adj = defaultdict(set)
+    for r in resources:
+        for c in links[r]:
+            if c in cases:
+                adj[("c", c)].add(("r", r))
+                adj[("r", r)].add(("c", c))
+    seen, comps = set(), []
+    for start in list(adj):
+        if start in seen:
+            continue
+        stack, comp = [start], set()
+        while stack:
+            n = stack.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            comp.add(n)
+            stack.extend(adj[n] - seen)
+        comps.append(({x for k, x in comp if k == "c"}, {x for k, x in comp if k == "r"}))
+    return comps
+
+
+def _best_assignment(cases, resources, weight):
+    """Exact max-weight matching by search (batches are small); first found wins ties."""
+    best = [(-1, [])]
+
+    def go(i, used, score, pairs):
+        if i == len(cases):
+            if score > best[0][0]:
+                best[0] = (score, list(pairs))
+            return
+        bound = score + 2 * (len(cases) - i)
+        if bound <= best[0][0]:
+            return
+        c = cases[i]
+        for r in resources:
+            w = weight.get((c, r))
+            if w and r not in used:
+                used.add(r)
+                pairs.append((c, r))
+                go(i + 1, used, score + w, pairs)
+                pairs.pop()
+                used.discard(r)
+        go(i + 1, used, score, pairs)
+
+    go(0, set(), 0, [])
+    return best[0][1]
+
+
+def _assign_accounts(self, first_status):
+    """One account per case, one case per account, solved per batch as a small assignment.
+
+    A pair scores 2 when the account shows up in the case's own audit capture and the
+    case otherwise looks complete (those captures list complete cases' accounts as
+    absent), and 1 otherwise; ties go to earlier cases and earlier worker events.
+    """
+    open_res = self.account_open
+    needy = {c for r in open_res for c in open_res[r] if not self._has_system(c, "account_service")}
+    for comp_cases, comp_accts in _components(needy, list(open_res), open_res):
+        comp_cases = sorted(comp_cases, key=lambda c: int(c.split("_")[1]))
+        comp_accts = sorted(comp_accts, key=lambda r: self.orphan_time[r])
+        weight = {(c, r): (2 if first_status.get(c) == "COMPLETE" and self._seen_during(r, c) else 1)
+                  for r in comp_accts for c in open_res[r] if c in comp_cases}
+        for c, r in _best_assignment(comp_cases, comp_accts, weight):
+            self.activity_links[c].add(r)
+
+
+Context.assign_accounts = _assign_accounts
+
+
+def _assign_orphans(self, first_status):
+    """Give each orphan record to a candidate case that is otherwise complete.
+
+    Successful policy actions (anonymize, redact, disable, block) leave records without
+    identifiers. Cases where deletion failed keep identifiable copies instead, so an
+    orphan goes to the earliest otherwise-complete case in its batch, one per system.
+    """
+    by_sys = defaultdict(list)
+    for rid, cids in self.orphans.items():
+        by_sys[self.activity_system[rid]].append(rid)
+    for system, rids in by_sys.items():
+        taken = set()
+        for rid in sorted(rids, key=lambda r: self.orphan_time[r]):
+            options = sorted((c for c in self.orphans[rid]
+                              if first_status.get(c) == "COMPLETE" and c not in taken
+                              and not any(ev.system_of(x) == system for x in self.activity_links[c])),
+                             key=lambda c: int(c.split("_")[1]))
+            if options:
+                self.activity_links[options[0]].add(rid)
+                taken.add(options[0])
+
+
+Context.assign_orphans = _assign_orphans
 
 
 def step(op, system, rid, evidence=""):
@@ -319,7 +405,9 @@ def audit_case(ctx, req, all_requests):
         for s in verification:
             s["evidence_id"] = ""
         return "INCOMPLETE", finalize(findings + remediation + verification)
-    return "COMPLETE", finalize(verification)
+    # A clean case must cite evidence for every check; a record nothing captured by audit
+    # time speaks to (only discovered later) cannot be verified, so it is left out.
+    return "COMPLETE", finalize([s for s in verification if s["evidence_id"]])
 
 
 def run(dataset_dir, requests_file, image_notes=None):
@@ -329,6 +417,10 @@ def run(dataset_dir, requests_file, image_notes=None):
     for name in ("sample_deletion_requests.csv", "deletion_requests.csv"):
         everything += list(csv.DictReader(open(d / name, encoding="utf-8")))
     ctx.link_activity(everything)
+    deletion = [r for r in everything if is_deletion_request(r["request_text"])]
+    first = {r["case_id"]: audit_case(ctx, r, everything)[0] for r in deletion}
+    ctx.assign_accounts(first)
+    ctx.assign_orphans(first)
     rows = list(csv.DictReader(open(d / requests_file, encoding="utf-8")))
     out = []
     for r in rows:
