@@ -1,0 +1,44 @@
+{
+  "_about": "Structured transcription of the 11 evidence screenshots, made once with Claude vision during development and checked by hand. Each record is what the screen shows for one resource. 'state' uses the engine's vocabulary: PRESENT (record exists with direct identifiers), CLEAN (exists without direct identifiers), ACTIVE/DISABLED (data flow), ACTIVE/BLOCKED (restore path), RETAINED (policy-retained record).",
+  "evidence/images/object_storage_browser_20260213.png": [
+    {"resource_id": "object_19", "system": "object_storage", "category": "SUPPORT_ATTACHMENT", "state": "PRESENT", "idents": [], "note": "delivery_confirmation_19.pdf in northstar-customer-data/support-attachments, v3 modified 12 Feb 18:42"}
+  ],
+  "evidence/images/security_audit_explorer_20260905.png": [
+    {"resource_id": "audit_record_003", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "account_closure_recorded, subject user_03, signature valid"},
+    {"resource_id": "audit_record_002", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "session revoked"},
+    {"resource_id": "audit_record_001", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "recovery challenge completed"},
+    {"resource_id": "audit_record_006", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "email change confirmed"},
+    {"resource_id": "audit_record_005", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "login from new device"},
+    {"resource_id": "audit_record_004", "system": "security_service", "category": "SECURITY_AUDIT_LOG", "state": "RETAINED", "idents": ["user_03"], "note": "password changed"}
+  ],
+  "evidence/images/account_admin_console_20260926.png": [
+    {"resource_id": "account_5762", "system": "account_service", "category": "USER_PROFILE", "state": "PRESENT", "idents": ["user_11", "haruka.s1838@zoho.com", "+81 90 7610 2507"], "note": "Haruka Sato customer profile still live, last contact 24 Sep 2026"},
+    {"resource_id": "support_9538", "system": "support_platform", "category": "SUPPORT_MESSAGE", "state": "PRESENT", "idents": ["user_11"], "note": "support case CS-8538 listed on the live profile"}
+  ],
+  "evidence/images/search_index_inspector_20260901.png": [
+    {"resource_id": "search_428", "system": "search_service", "category": "SEARCH_INDEX_ENTRY", "state": "PRESENT", "idents": ["g.silva76@gmail.com", "user_13"], "note": "Gabriel Silva document in customer_directory_v3"},
+    {"resource_id": "search_1874", "system": "search_service", "category": "SEARCH_INDEX_ENTRY", "state": "PRESENT", "idents": ["g.silva76.jr@gmail.com"], "note": "look-alike email, different subject"}
+  ],
+  "evidence/images/connector_management_console_20260807.png": [
+    {"resource_id": "data_flow_1121", "system": "integration_service", "category": "DATA_FLOW", "state": "ACTIVE", "idents": ["jain.aditi@gmail.com"], "note": "continuous sync to customer_analytics_warehouse, healthy, 124 events delivered 07:59:42"},
+    {"resource_id": "data_flow_9846", "system": "integration_service", "category": "DATA_FLOW", "state": "ACTIVE", "idents": ["lucia-torres@gmail.com"], "note": "continuous sync to customer_analytics_warehouse"}
+  ],
+  "evidence/images/analytics_profile_view_20260713.png": [
+    {"resource_id": "analytics_7438", "system": "analytics_platform", "category": "ANALYTICS_PROFILE", "state": "PRESENT", "idents": ["user_20", "darwish.omar@icloud.com"], "note": "Omar Darwish profile shows name, user id and email"}
+  ],
+  "evidence/images/customer_export_console_20260618.png": [
+    {"resource_id": "export_1260", "system": "export_service", "category": "USER_EXPORT", "state": "PRESENT", "idents": ["ingrid.dahl@outlook.com"], "note": "customer_export_1260.zip ready for download, expires 25 Jun 2026"}
+  ],
+  "evidence/images/support_ticket_console_20260524.png": [
+    {"resource_id": "support_1034", "system": "support_platform", "category": "SUPPORT_MESSAGE", "state": "PRESENT", "idents": ["kagyeman8947@fastmail.com"], "note": "CS-5034 conversation with Kofi Agyeman and agent Maya Chen; shared order context"}
+  ],
+  "evidence/images/backup_restore_console_20260429.png": [
+    {"resource_id": "backup_9287", "system": "backup_service", "category": "BACKUP_ARCHIVE", "state": "ACTIVE", "idents": ["areed1433@gmail.com"], "note": "weekly archive with the account, restorable (recent restores completed), retention end 26 Jul 2026"}
+  ],
+  "evidence/images/deleted_account_reference_20260310.png": [
+    {"resource_id": "tombstone_17", "system": "identity_service", "category": "ACCOUNT_TOMBSTONE", "state": "CLEAN", "idents": ["user_17"], "note": "retained customer key user_17 with linked order, support and finance references; no name, email or phone shown"}
+  ],
+  "evidence/images/marketing_profile_console.png": [
+    {"resource_id": "marketing_001", "system": "marketing_platform", "category": "MARKETING_PROFILE", "state": "PRESENT", "idents": [], "note": "live audience profile, email opt-in yes, last refreshed 15 Sep 2026 23:40 UTC"}
+  ]
+}
