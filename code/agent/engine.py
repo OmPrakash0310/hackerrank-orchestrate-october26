@@ -350,6 +350,23 @@ def first_seen(ctx, rid):
     return min(times) if times else ""
 
 
+# When one capture holds several readings of a record (primary and replicas in one SQL
+# file), the later log line wins, and on a tie the least compliant copy wins: one exposed
+# replica is enough to make the deletion incomplete.
+SEVERITY = {ev.ABSENT: 0, ev.DISABLED: 1, ev.BLOCKED: 1, ev.CLEAN: 2, ev.RETAINED: 3, ev.ACTIVE: 4, ev.PRESENT: 5}
+
+
+def event_time(o):
+    """When the reading was taken: a log line or ledger row can carry its own time."""
+    if o.source == "screenshot":
+        return o.captured_at
+    return o.detail.get("ts") or o.detail.get("recorded_at") or o.captured_at
+
+
+def state_key(o):
+    return (o.captured_at, o.file_id, event_time(o), SEVERITY.get(o.state, 0))
+
+
 def audit_case(ctx, req, all_requests):
     if not is_deletion_request(req["request_text"]):
         return "NOT_APPLICABLE", []
@@ -377,8 +394,8 @@ def audit_case(ctx, req, all_requests):
     for rid in sorted(resources):
         obs = [o for o in ctx.by_resource[rid] if o.captured_at > start]
         system = ev.system_of(rid) or (obs[0].system if obs else ctx.activity_system.get(rid, ""))
-        current = [o for o in obs if o.captured_at <= audit_at]
-        latest = max(current, key=lambda o: (o.captured_at, o.file_id)) if current else None
+        current = [o for o in obs if o.captured_at <= audit_at and event_time(o) <= audit_at]
+        latest = max(current, key=state_key) if current else None
         cats = [o.category for o in obs if o.category]
         cat = latest.category if latest and latest.category else (cats[0] if cats else ev.SYSTEM_CATEGORY.get(system, ""))
         treat = TREATMENT.get(cat, "DELETE")

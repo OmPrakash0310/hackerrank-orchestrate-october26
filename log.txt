@@ -130,3 +130,25 @@ branch=ghost-data-agent
 repo_root=/home/claude/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T05:40:00Z] Build harder evaluation suite
+
+User Prompt (verbatim, secrets redacted):
+make harder evals
+
+Agent Response Summary:
+Added code/evaluation/hard_cases.py: 19 synthetic trap scenarios built as a fictional mini-dataset and run end to end (old email, late files, recreation, replica drift, tombstone PII, decoys, legal hold, full ordering, multilingual refusals), plus 4 metamorphic tests on the real data (email swap, upper case, shuffled rows, decoy identities). The first run failed 7 synthetic checks; fixed with a sentence-level multilingual classifier, least-compliant-copy-wins within one capture, and per-row reading times capped at audit_at. All 23 checks, 18 custom checks and the samples (status 1.00, step F1 0.98) pass; output.csv validates with 0 errors.
+
+Actions:
+* wrote code/evaluation/hard_cases.py
+* rewrote code/agent/classify.py; edited code/agent/engine.py (state_key, event_time)
+* updated code/evaluation/evaluation_report.md, regenerated output.csv and code.zip
+* git commit and push to ghost-data-agent
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=ghost-data-agent
+repo_root=/home/claude/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

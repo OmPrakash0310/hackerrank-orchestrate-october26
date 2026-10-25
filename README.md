@@ -18,6 +18,7 @@ python3 code/evaluation/main.py validate --pred output.csv
 python3 code/main.py --samples                         # writes code/evaluation/sample_predictions.csv
 python3 code/evaluation/main.py score --pred code/evaluation/sample_predictions.csv
 python3 code/evaluation/custom_cases.py                # 18 hand-built checks
+python3 code/evaluation/hard_cases.py                  # 19 synthetic traps + 4 metamorphic tests
 ```
 
 ## How it works
